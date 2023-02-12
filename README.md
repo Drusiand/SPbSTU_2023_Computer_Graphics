@@ -1,0 +1,1 @@
+# SPbSTU_2023_Computer_Graphics
