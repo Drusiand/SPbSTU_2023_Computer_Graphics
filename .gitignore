@@ -1,0 +1,7 @@
+# vs cache or smth
+.vs
+*.filters
+*.user
+
+# no need mb?
+x64
