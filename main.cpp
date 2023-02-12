@@ -234,8 +234,8 @@ HRESULT InitDevice()
 
     D3D_FEATURE_LEVEL featureLevels[] =
     {
-        D3D_FEATURE_LEVEL_12_0,
-        D3D_FEATURE_LEVEL_11_1,
+       /* D3D_FEATURE_LEVEL_12_0,
+        D3D_FEATURE_LEVEL_11_1,*/
         D3D_FEATURE_LEVEL_11_0,
         D3D_FEATURE_LEVEL_10_1,
         D3D_FEATURE_LEVEL_10_0,
@@ -282,64 +282,28 @@ HRESULT InitDevice()
         return hr;
 
     // Create swap chain
-    IDXGIFactory2* dxgiFactory2 = nullptr;
-    hr = dxgiFactory->QueryInterface( __uuidof(IDXGIFactory2), reinterpret_cast<void**>(&dxgiFactory2) );
-    //if ( dxgiFactory2 )
-    //{
-    //    // DirectX 11.1 or later
-    //    hr = g_pd3dDevice->QueryInterface( __uuidof(ID3D11Device1), reinterpret_cast<void**>(&g_pd3dDevice1) );
-    //    if (SUCCEEDED(hr))
-    //    {
-    //        (void) g_pImmediateContext->QueryInterface( __uuidof(ID3D11DeviceContext1), reinterpret_cast<void**>(&g_pImmediateContext1) );
-    //    }
+    DXGI_SWAP_CHAIN_DESC sd;
+    ZeroMemory(&sd, sizeof(sd));
+    sd.BufferCount = 2;
+    sd.BufferDesc.Width = width;
+    sd.BufferDesc.Height = height;
+    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+    sd.BufferDesc.RefreshRate.Numerator = 60;
+    sd.BufferDesc.RefreshRate.Denominator = 1;
+    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
+    sd.OutputWindow = g_hWnd;
+    sd.SampleDesc.Count = 1;
+    sd.SampleDesc.Quality = 0;
+    sd.Windowed = TRUE;
+    hr = dxgiFactory->CreateSwapChain( g_pd3dDevice, &sd, &g_pSwapChain );
 
-    //    DXGI_SWAP_CHAIN_DESC1 sd;
-    //    ZeroMemory(&sd, sizeof(sd));
-    //    sd.Width = width;
-    //    sd.Height = height;
-    //    sd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    //    sd.SampleDesc.Count = 1;
-    //    sd.SampleDesc.Quality = 0;
-    //    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    //    sd.BufferCount = 2;
-    //    sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_SEQUENTIAL;
-
-
-    //    hr = dxgiFactory2->CreateSwapChainForHwnd( g_pd3dDevice, g_hWnd, &sd, nullptr, nullptr, &g_pSwapChain1 );
-    //    if (SUCCEEDED(hr))
-    //    {
-    //        hr = g_pSwapChain1->QueryInterface( __uuidof(IDXGISwapChain), reinterpret_cast<void**>(&g_pSwapChain) );
-    //    }
-
-    //    dxgiFactory2->Release();
-    //}
-    //else
-    //{
-        // DirectX 11.0 systems
-        DXGI_SWAP_CHAIN_DESC sd;
-        ZeroMemory(&sd, sizeof(sd));
-        sd.BufferCount = 2;
-        sd.BufferDesc.Width = width;
-        sd.BufferDesc.Height = height;
-        sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        sd.BufferDesc.RefreshRate.Numerator = 60;
-        sd.BufferDesc.RefreshRate.Denominator = 1;
-        sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-        sd.OutputWindow = g_hWnd;
-        sd.SampleDesc.Count = 1;
-        sd.SampleDesc.Quality = 0;
-        sd.Windowed = TRUE;
-        // sd.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-        hr = dxgiFactory->CreateSwapChain( g_pd3dDevice, &sd, &g_pSwapChain );
-    //}
+    if (FAILED(hr))
+        return hr;
 
     // Note this tutorial doesn't handle full-screen swapchains so we block the ALT+ENTER shortcut
     dxgiFactory->MakeWindowAssociation( g_hWnd, DXGI_MWA_NO_ALT_ENTER );
 
     dxgiFactory->Release();
-
-    if (FAILED(hr))
-        return hr;
 
     // Create a render target view
     ID3D11Texture2D* pBackBuffer = nullptr;
@@ -548,9 +512,49 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
     case WM_DESTROY:
         PostQuitMessage( 0 );
         break;
+    case WM_SIZE:
+        if (g_pSwapChain)
+        {
+            g_pImmediateContext->OMSetRenderTargets(0, 0, 0);
 
-        // Note that this tutorial does not handle resizing (WM_SIZE) requests,
-        // so we created the window without the resize border.
+            // Release all outstanding references to the swap chain's buffers.
+            g_pRenderTargetView->Release();
+
+            HRESULT hr;
+            // Preserve the existing buffer count and format.
+            // Automatically choose the width and height to match the client rect for HWNDs.
+            hr = g_pSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
+
+            if (FAILED(hr))
+                return hr;
+
+            // Get buffer and create a render-target-view.
+            ID3D11Texture2D* pBuffer;
+            hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBuffer);
+
+            if (FAILED(hr))
+                return hr;
+
+            if (pBuffer != 0) {
+                hr = g_pd3dDevice->CreateRenderTargetView(pBuffer, NULL,
+                    &g_pRenderTargetView);
+                pBuffer->Release();
+                if (FAILED(hr))
+                    return hr;
+            }        
+
+            g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
+
+            // Set up the viewport.
+            D3D11_VIEWPORT vp;
+            vp.Width = LOWORD(lParam);
+            vp.Height = HIWORD(lParam);
+            vp.MinDepth = 0.0f;
+            vp.MaxDepth = 1.0f;
+            vp.TopLeftX = 0;
+            vp.TopLeftY = 0;
+            g_pImmediateContext->RSSetViewports(1, &vp);
+        }
 
     default:
         return DefWindowProc( hWnd, message, wParam, lParam );
