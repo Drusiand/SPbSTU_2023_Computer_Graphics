@@ -211,7 +211,7 @@ HRESULT CompileShaderFromFile( WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR sz
 // Create Direct3D device and swap chain
 //--------------------------------------------------------------------------------------
 HRESULT InitDevice()
-{
+{   
     HRESULT hr = S_OK;
 
     RECT rc;
@@ -569,6 +569,12 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 //--------------------------------------------------------------------------------------
 void Render()
 {
+    ID3DUserDefinedAnnotation* pAnnotation = nullptr;
+    g_pImmediateContext->QueryInterface(__uuidof(pAnnotation), reinterpret_cast<void**>(&pAnnotation));
+
+    pAnnotation->BeginEvent(L"Rendering");
+
+
     // Update our time
     static float t = 0.0f;
     if( g_driverType == D3D_DRIVER_TYPE_REFERENCE )
@@ -611,7 +617,8 @@ void Render()
 	g_pImmediateContext->PSSetShader( g_pPixelShader, nullptr, 0 );
 	g_pImmediateContext->DrawIndexed( 36, 0, 0 );        // 36 vertices needed for 12 triangles in a triangle list
 
-    std::cout << "Aaa" << std::endl;
+    pAnnotation->EndEvent();
+
 
     //
     // Present our back buffer to our front buffer
