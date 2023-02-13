@@ -570,7 +570,13 @@ LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam 
 void Render()
 {
     ID3DUserDefinedAnnotation* pAnnotation = nullptr;
-    g_pImmediateContext->QueryInterface(__uuidof(pAnnotation), reinterpret_cast<void**>(&pAnnotation));
+    HRESULT hr = g_pImmediateContext->QueryInterface(__uuidof(pAnnotation), reinterpret_cast<void**>(&pAnnotation));
+
+    if (FAILED(hr)) {
+        pAnnotation = nullptr;
+        CleanupDevice();
+        return;
+    }
 
     pAnnotation->BeginEvent(L"Rendering");
 
