@@ -1,0 +1,6 @@
+﻿D:\VSProjects\CompGrpahNew\DirectX11_app\ColorShader.hlsl(46,18-49): warning X3206: 'mul': implicit truncation of vector type
+D:\VSProjects\CompGrpahNew\DirectX11_app\ColorShader.hlsl(46,2-49): warning X3206: implicit truncation of vector type
+D:\VSProjects\CompGrpahNew\DirectX11_app\ColorShader.hlsl(57,9-57): warning X3206: implicit truncation of vector type
+FXC : error X3501: 'main': entrypoint not found
+  
+  compilation failed; no code produced
