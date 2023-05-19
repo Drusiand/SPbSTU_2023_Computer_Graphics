@@ -54,6 +54,9 @@ Renderer::Renderer()
 	, m_pContext(nullptr)
 	, m_pSwapChain(nullptr)
 	, m_pBackBufferRTV(nullptr)
+	, m_pRenderRTV(nullptr)
+	, m_pRenderTexture(nullptr)
+	, m_pRenderSRV(nullptr)
 	, m_pDepth(nullptr)
 	, m_pDepthDSV(nullptr)
 	, m_width(0)
@@ -77,6 +80,7 @@ Renderer::Renderer()
 	, m_dist(10.0f)
 	, m_xpos(0)
 	, m_ypos(0)
+	, m_pRenderWindow(nullptr)
 	, m_lightPower(1)
 	, m_elapsedSec(0)
 {
@@ -176,11 +180,17 @@ bool Renderer::Init(HWND hWnd)
 		samplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 		samplerDesc.MinLOD = 0;
 		samplerDesc.MaxLOD = 1000;
+		//samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		//samplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
+		//samplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
 		samplerDesc.Filter = D3D11_FILTER_ANISOTROPIC;
 		samplerDesc.MaxAnisotropy = 16;
 
 		result = m_pDevice->CreateSamplerState(&samplerDesc, &m_pSamplerState);
 	}
+
+	m_pRenderWindow = new RenderWindow();
+	m_pRenderWindow->Init(m_pDevice, m_pContext, m_width, m_height);
 
 	SAFE_RELEASE(pSelectedAdapter);
 	SAFE_RELEASE(pFactory);
@@ -196,14 +206,22 @@ void Renderer::Term()
 	SAFE_RELEASE(m_pDepth);
 	SAFE_RELEASE(m_pBackBufferRTV);
 	SAFE_RELEASE(m_pSwapChain);
-	SAFE_RELEASE(m_pContext);
-	SAFE_RELEASE(m_pDevice);
+	//SAFE_RELEASE(m_pContext);
+	//SAFE_RELEASE(m_pDevice);
 
+	SAFE_RELEASE(m_pRenderRTV);
 
 	SAFE_RELEASE(m_pRasterizerState);
 
 	delete m_pShaderCompiler;
 	m_pShaderCompiler = nullptr;
+
+	SAFE_RELEASE(m_pRenderSRV);
+	SAFE_RELEASE(m_pRenderTexture);
+
+	m_pRenderWindow->Term();
+	delete m_pRenderWindow;
+	m_pRenderWindow = nullptr;
 }
 
 void Renderer::Resize(UINT width, UINT height)
@@ -325,6 +343,32 @@ HRESULT Renderer::SetupBackBuffer()
 		assert(SUCCEEDED(result));
 
 		SAFE_RELEASE(pBackBuffer);
+	}
+
+	D3D11_TEXTURE2D_DESC renderTextureDesc;
+	ZeroMemory(&renderTextureDesc, sizeof(renderTextureDesc));
+	renderTextureDesc.Width = m_width;
+	renderTextureDesc.Height = m_height;
+	renderTextureDesc.MipLevels = 1;
+	renderTextureDesc.ArraySize = 1;
+	renderTextureDesc.Format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+	renderTextureDesc.SampleDesc.Count = 1;
+	renderTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+	renderTextureDesc.BindFlags = D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE;
+	renderTextureDesc.CPUAccessFlags = 0;
+	renderTextureDesc.MiscFlags = 0;
+
+	result = m_pDevice->CreateTexture2D(&renderTextureDesc, nullptr, &m_pRenderTexture);
+
+
+	if (SUCCEEDED(result))
+	{
+		result = m_pDevice->CreateRenderTargetView(m_pRenderTexture, nullptr, &m_pRenderRTV);
+	}
+
+	if (SUCCEEDED(result))
+	{
+		result = m_pDevice->CreateShaderResourceView(m_pRenderTexture, nullptr, &m_pRenderSRV);
 	}
 
 	if (SUCCEEDED(result))
@@ -550,6 +594,8 @@ bool Renderer::Render()
 {
 	RenderToBackBuffer();
 
+	m_pRenderWindow->ToneMap(m_pRenderSRV, m_pBackBufferRTV, m_width, m_height, m_elapsedSec, 0.75f);
+
 	HRESULT result = m_pSwapChain->Present(1, 0);
 	assert(SUCCEEDED(result));
 
@@ -590,7 +636,8 @@ void Renderer::RenderScene()
 
 void Renderer::RenderToTexture()
 {
-	// TBA
+	m_pRenderWindow->SetRenderTarget(m_pContext, m_pDepthDSV);
+	m_pRenderWindow->ClearRenderTarget(m_pContext, m_pDepthDSV);
 	RenderScene();
 }
 
@@ -598,10 +645,11 @@ void Renderer::RenderToBackBuffer()
 {
 	m_pContext->ClearState();
 
-	m_pContext->OMSetRenderTargets(1, &m_pBackBufferRTV, m_pDepthDSV);
+	m_pContext->OMSetRenderTargets(1, &m_pRenderRTV, m_pDepthDSV);
 
 	const FLOAT BackColor[4] = { 0.25f, 0.25f, 0.25f, 1.0f };
 	m_pContext->ClearRenderTargetView(m_pBackBufferRTV, BackColor);
+	m_pContext->ClearRenderTargetView(m_pRenderRTV, BackColor);
 	m_pContext->ClearDepthStencilView(m_pDepthDSV, D3D11_CLEAR_DEPTH, 1.0f, 0);
 
 	D3D11_VIEWPORT viewport{ 0, 0, (float)m_width, (float)m_height, 0.0f, 1.0f };

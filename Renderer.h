@@ -3,6 +3,7 @@
 #include <d3d11.h>
 #include <dxgi.h>
 #include "ShaderCompiler.h"
+#include "RenderWindow.h"
 
 class Renderer
 {
@@ -41,6 +42,10 @@ private:
 	IDXGISwapChain* m_pSwapChain;
 	ID3D11RenderTargetView* m_pBackBufferRTV;
 
+	ID3D11RenderTargetView* m_pRenderRTV;
+	ID3D11Texture2D* m_pRenderTexture;
+	ID3D11ShaderResourceView* m_pRenderSRV;
+
 	ID3D11Texture2D* m_pDepth;
 	ID3D11DepthStencilView* m_pDepthDSV;
 
@@ -61,6 +66,8 @@ private:
 	ID3D11RasterizerState* m_pRasterizerState;
 
 	ShaderCompiler* m_pShaderCompiler;
+
+	RenderWindow* m_pRenderWindow;
 
 	UINT m_width;
 	UINT m_height;

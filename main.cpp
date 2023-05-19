@@ -49,6 +49,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance,
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+    // TODO: Place code here.
+
     // Initialize global strings
     LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
     LoadStringW(hInstance, IDC_DX11TUTORIAL01, szWindowClass, MAX_LOADSTRING);
@@ -247,6 +249,7 @@ LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
         {
             PAINTSTRUCT ps;
             HDC hdc = BeginPaint(hWnd, &ps);
+            // TODO: Add any drawing code that uses hdc here...
             EndPaint(hWnd, &ps);
         }
         break;
