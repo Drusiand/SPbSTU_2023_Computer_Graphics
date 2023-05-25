@@ -1,634 +1,283 @@
-//--------------------------------------------------------------------------------------
+// DX11Tutorial01.cpp : Defines the entry point for the application.
 //
-// This application displays a 3D cube using Direct3D 11
-//
-// http://msdn.microsoft.com/en-us/library/windows/apps/ff729721.aspx
-//
-// THIS CODE AND INFORMATION IS PROVIDED "AS IS" WITHOUT WARRANTY OF
-// ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING BUT NOT LIMITED TO
-// THE IMPLIED WARRANTIES OF MERCHANTABILITY AND/OR FITNESS FOR A
-// PARTICULAR PURPOSE.
-//
-// Copyright (c) Microsoft Corporation. All rights reserved.
-//--------------------------------------------------------------------------------------
-#include <windows.h>
-#include <d3d11_1.h>
-#include <d3dcompiler.h>
-#include <directxmath.h>
-#include <directxcolors.h>
-#include "resource.h"
 
-#include <iostream>
+#include "framework.h"
+#include "main.h"
 
-#define WIDTH 800
-#define HEIGHT 600
+#include "Renderer.h"
+#include <windowsx.h>
 
-using namespace DirectX;
+#define MAX_LOADSTRING 100
 
-//--------------------------------------------------------------------------------------
-// Structures
-//--------------------------------------------------------------------------------------
-struct SimpleVertex
+#define VK_W 0x57
+#define VK_S 0x53
+#define VK_A 0x41
+#define VK_D 0x44
+
+#define VK_UP 0x26
+#define VK_DOWN 0x28
+#define VK_LEFT 0x25
+#define VK_RIGHT 0x27
+
+#define VK_ONE 0x31
+#define VK_TWO 0x32
+#define VK_THREE 0x33
+
+// Global Variables:
+HINSTANCE hInst;                                // current instance
+WCHAR szTitle[MAX_LOADSTRING];                  // The title bar text
+WCHAR szWindowClass[MAX_LOADSTRING];            // the main window class name
+
+// Forward declarations of functions included in this code module:
+ATOM                MyRegisterClass(HINSTANCE hInstance);
+BOOL                InitInstance(HINSTANCE, int);
+LRESULT CALLBACK    WndProc(HWND, UINT, WPARAM, LPARAM);
+INT_PTR CALLBACK    About(HWND, UINT, WPARAM, LPARAM);
+
+HWND g_hWnd = NULL;
+Renderer* g_pRenderer = NULL;
+
+bool g_mousePress = false;
+int g_mousePrevX = 0;
+int g_mousePrevY = 0;
+
+int WINAPI wWinMain(_In_ HINSTANCE hInstance,
+                     _In_opt_ HINSTANCE hPrevInstance,
+                     _In_ LPWSTR    lpCmdLine,
+                     _In_ int       nCmdShow)
 {
-    XMFLOAT3 Pos;
-    XMFLOAT4 Color;
-};
+    UNREFERENCED_PARAMETER(hPrevInstance);
+    UNREFERENCED_PARAMETER(lpCmdLine);
 
+    // TODO: Place code here.
 
-struct ConstantBuffer
-{
-	XMMATRIX mWorld;
-	XMMATRIX mView;
-	XMMATRIX mProjection;
-};
+    // Initialize global strings
+    LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
+    LoadStringW(hInstance, IDC_DX11TUTORIAL01, szWindowClass, MAX_LOADSTRING);
+    MyRegisterClass(hInstance);
 
-
-//--------------------------------------------------------------------------------------
-// Global Variables
-//--------------------------------------------------------------------------------------
-HINSTANCE               g_hInst = nullptr;
-HWND                    g_hWnd = nullptr;
-D3D_DRIVER_TYPE         g_driverType = D3D_DRIVER_TYPE_NULL;
-D3D_FEATURE_LEVEL       g_featureLevel = D3D_FEATURE_LEVEL_11_0;
-ID3D11Device*           g_pd3dDevice = nullptr;
-ID3D11Device1*          g_pd3dDevice1 = nullptr;
-ID3D11DeviceContext*    g_pImmediateContext = nullptr;
-ID3D11DeviceContext1*   g_pImmediateContext1 = nullptr;
-IDXGISwapChain*         g_pSwapChain = nullptr;
-IDXGISwapChain1*        g_pSwapChain1 = nullptr;
-ID3D11RenderTargetView* g_pRenderTargetView = nullptr;
-ID3D11VertexShader*     g_pVertexShader = nullptr;
-ID3D11PixelShader*      g_pPixelShader = nullptr;
-ID3D11InputLayout*      g_pVertexLayout = nullptr;
-ID3D11Buffer*           g_pVertexBuffer = nullptr;
-ID3D11Buffer*           g_pIndexBuffer = nullptr;
-ID3D11Buffer*           g_pConstantBuffer = nullptr;
-XMMATRIX                g_World;
-XMMATRIX                g_View;
-XMMATRIX                g_Projection;
-
-
-//--------------------------------------------------------------------------------------
-// Forward declarations
-//--------------------------------------------------------------------------------------
-HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow );
-HRESULT InitDevice();
-void CleanupDevice();
-LRESULT CALLBACK    WndProc( HWND, UINT, WPARAM, LPARAM );
-void Render();
-
-
-//--------------------------------------------------------------------------------------
-// Entry point to the program. Initializes everything and goes into a message processing 
-// loop. Idle time is used to render the scene.
-//--------------------------------------------------------------------------------------
-int WINAPI wWinMain( _In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow )
-{
-    UNREFERENCED_PARAMETER( hPrevInstance );
-    UNREFERENCED_PARAMETER( lpCmdLine );
-
-    if( FAILED( InitWindow( hInstance, nCmdShow ) ) )
-        return 0;
-
-    if( FAILED( InitDevice() ) )
+    // Perform application initialization:
+    if (!InitInstance (hInstance, nCmdShow))
     {
-        CleanupDevice();
-        return 0;
+        return FALSE;
     }
 
-    // Main message loop
-    MSG msg = {0};
-    while( WM_QUIT != msg.message )
+    g_pRenderer = new Renderer();
+    if (!g_pRenderer->Init(g_hWnd))
     {
-        if( PeekMessage( &msg, nullptr, 0, 0, PM_REMOVE ) )
-        {
-            TranslateMessage( &msg );
-            DispatchMessage( &msg );
-        }
-        else
-        {
-            Render();
-        }
+       return FALSE;
     }
 
-    CleanupDevice();
+    HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_DX11TUTORIAL01));
 
-    return ( int )msg.wParam;
+    MSG msg;
+
+    // Main message loop:
+    bool exit = false;
+    while (!exit)
+    {
+       if (PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE))
+       {
+          if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
+          {
+             TranslateMessage(&msg);
+             DispatchMessage(&msg);
+          }
+       }
+       if (msg.message == WM_QUIT)
+       {
+          exit = true;
+       }
+
+       g_pRenderer->Update();
+       g_pRenderer->Render();
+    }
+
+    g_pRenderer->Term();
+    delete g_pRenderer;
+    g_pRenderer = NULL;
+
+    g_hWnd = NULL;
+
+    return (int) msg.wParam;
 }
 
 
-//--------------------------------------------------------------------------------------
-// Register class and create window
-//--------------------------------------------------------------------------------------
-HRESULT InitWindow( HINSTANCE hInstance, int nCmdShow )
-{
-    // Register class
-    WNDCLASSEX wcex;
-    wcex.cbSize = sizeof( WNDCLASSEX );
-    wcex.style = CS_HREDRAW | CS_VREDRAW;
-    wcex.lpfnWndProc = WndProc;
-    wcex.cbClsExtra = 0;
-    wcex.cbWndExtra = 0;
-    wcex.hInstance = hInstance;
-    wcex.hIcon = LoadIcon( hInstance, ( LPCTSTR )IDI_TUTORIAL1 );
-    wcex.hCursor = LoadCursor( nullptr, IDC_ARROW );
-    wcex.hbrBackground = ( HBRUSH )( COLOR_WINDOW + 1 );
-    wcex.lpszMenuName = nullptr;
-    wcex.lpszClassName = L"TutorialWindowClass";
-    wcex.hIconSm = LoadIcon( wcex.hInstance, ( LPCTSTR )IDI_TUTORIAL1 );
-    if( !RegisterClassEx( &wcex ) )
-        return E_FAIL;
 
-    // Create window
-    g_hInst = hInstance;
-
-    int centerScreenX = GetSystemMetrics(SM_CXSCREEN) / 2 - WIDTH / 2;
-    int centerScreenY = GetSystemMetrics(SM_CYSCREEN) / 2 - HEIGHT / 2;
-    
-    RECT rc;//  = { centerScreenX, centerScreenY, WIDTH, HEIGHT };
-    rc.left = centerScreenX;
-    rc.top = centerScreenY;
-    rc.right = rc.left + WIDTH;
-    rc.bottom = rc.top + HEIGHT;
-
-
-    AdjustWindowRect( &rc, WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX, FALSE );
-
-    g_hWnd = CreateWindow( L"TutorialWindowClass", L"3D cube app",
-                           WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_MINIMIZEBOX | WS_MAXIMIZEBOX | WS_SIZEBOX,
-                           rc.left, rc.top, rc.right - rc.left, rc.bottom - rc.top,
-                           nullptr, nullptr, hInstance,
-                           nullptr );
-    if( !g_hWnd )
-        return E_FAIL;
-
-    ShowWindow( g_hWnd, nCmdShow );
-
-    return S_OK;
-}
-
-
-//--------------------------------------------------------------------------------------
-// Helper for compiling shaders with D3DCompile
 //
-// With VS 11, we could load up prebuilt .cso files instead...
-//--------------------------------------------------------------------------------------
-HRESULT CompileShaderFromFile( WCHAR* szFileName, LPCSTR szEntryPoint, LPCSTR szShaderModel, ID3DBlob** ppBlobOut )
+//  FUNCTION: MyRegisterClass()
+//
+//  PURPOSE: Registers the window class.
+//
+ATOM MyRegisterClass(HINSTANCE hInstance)
 {
-    HRESULT hr = S_OK;
+    WNDCLASSEXW wcex;
 
-    DWORD dwShaderFlags = D3DCOMPILE_ENABLE_STRICTNESS;
-#ifdef _DEBUG
-    // Set the D3DCOMPILE_DEBUG flag to embed debug information in the shaders.
-    // Setting this flag improves the shader debugging experience, but still allows 
-    // the shaders to be optimized and to run exactly the way they will run in 
-    // the release configuration of this program.
-    dwShaderFlags |= D3DCOMPILE_DEBUG;
+    wcex.cbSize = sizeof(WNDCLASSEX);
 
-    // Disable optimizations to further improve shader debugging
-    dwShaderFlags |= D3DCOMPILE_SKIP_OPTIMIZATION;
-#endif
+    wcex.style          = CS_HREDRAW | CS_VREDRAW;
+    wcex.lpfnWndProc    = WndProc;
+    wcex.cbClsExtra     = 0;
+    wcex.cbWndExtra     = 0;
+    wcex.hInstance      = hInstance;
+    wcex.hIcon          = LoadIcon(hInstance, MAKEINTRESOURCE(IDI_DX11TUTORIAL01));
+    wcex.hCursor        = LoadCursor(nullptr, IDC_ARROW);
+    wcex.hbrBackground  = NULL;
+    wcex.lpszMenuName   = MAKEINTRESOURCEW(IDC_DX11TUTORIAL01);
+    wcex.lpszClassName  = szWindowClass;
+    wcex.hIconSm        = LoadIcon(wcex.hInstance, MAKEINTRESOURCE(IDI_SMALL));
 
-    ID3DBlob* pErrorBlob = nullptr;
-    hr = D3DCompileFromFile( szFileName, nullptr, nullptr, szEntryPoint, szShaderModel, 
-        dwShaderFlags, 0, ppBlobOut, &pErrorBlob );
-    if( FAILED(hr) )
-    {
-        if( pErrorBlob )
-        {
-            OutputDebugStringA( reinterpret_cast<const char*>( pErrorBlob->GetBufferPointer() ) );
-            pErrorBlob->Release();
-        }
-        return hr;
-    }
-    if( pErrorBlob ) pErrorBlob->Release();
-
-    return S_OK;
+    return RegisterClassExW(&wcex);
 }
 
+//
+//   FUNCTION: InitInstance(HINSTANCE, int)
+//
+//   PURPOSE: Saves instance handle and creates main window
+//
+//   COMMENTS:
+//
+//        In this function, we save the instance handle in a global variable and
+//        create and display the main program window.
+//
+BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
+{
+   hInst = hInstance; // Store instance handle in our global variable
 
-//--------------------------------------------------------------------------------------
-// Create Direct3D device and swap chain
-//--------------------------------------------------------------------------------------
-HRESULT InitDevice()
-{   
-    HRESULT hr = S_OK;
+   HWND hWnd = CreateWindowW(szWindowClass, szTitle, WS_OVERLAPPEDWINDOW,
+      CW_USEDEFAULT, 0, CW_USEDEFAULT, 0, nullptr, nullptr, hInstance, nullptr);
 
-    RECT rc;
-    GetClientRect( g_hWnd, &rc );
-    UINT width = rc.right - rc.left;
-    UINT height = rc.bottom - rc.top;
+   if (!hWnd)
+   {
+      return FALSE;
+   }
 
-    UINT createDeviceFlags = 0;
-#ifdef _DEBUG
-    createDeviceFlags |= D3D11_CREATE_DEVICE_DEBUG;
-#endif
+   ShowWindow(hWnd, nCmdShow);
+   UpdateWindow(hWnd);
 
-    D3D_DRIVER_TYPE driverTypes[] =
-    {
-        D3D_DRIVER_TYPE_HARDWARE,
-        D3D_DRIVER_TYPE_WARP,
-        D3D_DRIVER_TYPE_REFERENCE,
-    };
-    UINT numDriverTypes = ARRAYSIZE( driverTypes );
+   g_hWnd = hWnd;
 
-    D3D_FEATURE_LEVEL featureLevels[] =
-    {
-       /* D3D_FEATURE_LEVEL_12_0,
-        D3D_FEATURE_LEVEL_11_1,*/
-        D3D_FEATURE_LEVEL_11_0,
-        D3D_FEATURE_LEVEL_10_1,
-        D3D_FEATURE_LEVEL_10_0,
-    };
-	UINT numFeatureLevels = ARRAYSIZE( featureLevels );
-
-    for( UINT driverTypeIndex = 0; driverTypeIndex < numDriverTypes; driverTypeIndex++ )
-    {
-        g_driverType = driverTypes[driverTypeIndex];
-        hr = D3D11CreateDevice( nullptr, g_driverType, nullptr, createDeviceFlags, featureLevels, numFeatureLevels,
-                                D3D11_SDK_VERSION, &g_pd3dDevice, &g_featureLevel, &g_pImmediateContext );
-
-        if ( hr == E_INVALIDARG )
-        {
-            // DirectX 11.0 platforms will not recognize D3D_FEATURE_LEVEL_11_1 so we need to retry without it
-            hr = D3D11CreateDevice( nullptr, g_driverType, nullptr, createDeviceFlags, &featureLevels[1], numFeatureLevels - 1,
-                                    D3D11_SDK_VERSION, &g_pd3dDevice, &g_featureLevel, &g_pImmediateContext );
-        }
-
-        if( SUCCEEDED( hr ) )
-            break;
-    }
-    if( FAILED( hr ) )
-        return hr;
-
-    // Obtain DXGI factory from device (since we used nullptr for pAdapter above)
-    IDXGIFactory1* dxgiFactory = nullptr;
-    {
-        IDXGIDevice* dxgiDevice = nullptr;
-        hr = g_pd3dDevice->QueryInterface( __uuidof(IDXGIDevice), reinterpret_cast<void**>(&dxgiDevice) );
-        if (SUCCEEDED(hr))
-        {
-            IDXGIAdapter* adapter = nullptr;
-            hr = dxgiDevice->GetAdapter(&adapter);
-            if (SUCCEEDED(hr))
-            {
-                hr = adapter->GetParent( __uuidof(IDXGIFactory1), reinterpret_cast<void**>(&dxgiFactory) );
-                adapter->Release();
-            }
-            dxgiDevice->Release();
-        }
-    }
-    if (FAILED(hr))
-        return hr;
-
-    // Create swap chain
-    DXGI_SWAP_CHAIN_DESC sd;
-    ZeroMemory(&sd, sizeof(sd));
-    sd.BufferCount = 2;
-    sd.BufferDesc.Width = width;
-    sd.BufferDesc.Height = height;
-    sd.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-    sd.BufferDesc.RefreshRate.Numerator = 60;
-    sd.BufferDesc.RefreshRate.Denominator = 1;
-    sd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
-    sd.OutputWindow = g_hWnd;
-    sd.SampleDesc.Count = 1;
-    sd.SampleDesc.Quality = 0;
-    sd.Windowed = TRUE;
-    hr = dxgiFactory->CreateSwapChain( g_pd3dDevice, &sd, &g_pSwapChain );
-
-    if (FAILED(hr))
-        return hr;
-
-    // Note this tutorial doesn't handle full-screen swapchains so we block the ALT+ENTER shortcut
-    dxgiFactory->MakeWindowAssociation( g_hWnd, DXGI_MWA_NO_ALT_ENTER );
-
-    dxgiFactory->Release();
-
-    // Create a render target view
-    ID3D11Texture2D* pBackBuffer = nullptr;
-    hr = g_pSwapChain->GetBuffer( 0, __uuidof( ID3D11Texture2D ), reinterpret_cast<void**>( &pBackBuffer ) );
-    if( FAILED( hr ) )
-        return hr;
-
-    hr = g_pd3dDevice->CreateRenderTargetView( pBackBuffer, nullptr, &g_pRenderTargetView );
-    pBackBuffer->Release();
-    if( FAILED( hr ) )
-        return hr;
-
-    g_pImmediateContext->OMSetRenderTargets( 1, &g_pRenderTargetView, nullptr );
-
-    // Setup the viewport
-    D3D11_VIEWPORT vp;
-    vp.Width = (FLOAT)width;
-    vp.Height = (FLOAT)height;
-    vp.MinDepth = 0.0f;
-    vp.MaxDepth = 1.0f;
-    vp.TopLeftX = 0;
-    vp.TopLeftY = 0;
-    g_pImmediateContext->RSSetViewports( 1, &vp );
-
-    // Compile the vertex shader
-    ID3DBlob* pVSBlob = nullptr;
-    hr = CompileShaderFromFile( L"shader.fx", "VS", "vs_4_0", &pVSBlob );
-    if( FAILED( hr ) )
-    {
-        MessageBox( nullptr,
-                    L"Firts call. The FX file cannot be compiled.  Please run this executable from the directory that contains the FX file.", L"Error", MB_OK );
-        return hr;
-    }
-
-	// Create the vertex shader
-	hr = g_pd3dDevice->CreateVertexShader( pVSBlob->GetBufferPointer(), pVSBlob->GetBufferSize(), nullptr, &g_pVertexShader );
-	if( FAILED( hr ) )
-	{	
-		pVSBlob->Release();
-        return hr;
-	}
-
-    // Define the input layout
-    D3D11_INPUT_ELEMENT_DESC layout[] =
-    {
-        { "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-        { "COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 12, D3D11_INPUT_PER_VERTEX_DATA, 0 },
-	};
-	UINT numElements = ARRAYSIZE( layout );
-
-    // Create the input layout
-	hr = g_pd3dDevice->CreateInputLayout( layout, numElements, pVSBlob->GetBufferPointer(),
-                                          pVSBlob->GetBufferSize(), &g_pVertexLayout );
-	pVSBlob->Release();
-	if( FAILED( hr ) )
-        return hr;
-
-    // Set the input layout
-    g_pImmediateContext->IASetInputLayout( g_pVertexLayout );
-
-	// Compile the pixel shader
-	ID3DBlob* pPSBlob = nullptr;
-    hr = CompileShaderFromFile( L"shader.fx", "PS", "ps_4_0", &pPSBlob );
-    if( FAILED( hr ) )
-    {
-        MessageBox( nullptr,
-                    L"Second call. The FX file cannot be compiled.  Please run this executable from the directory that contains the FX file.", L"Error", MB_OK );
-        return hr;
-    }
-
-	// Create the pixel shader
-	hr = g_pd3dDevice->CreatePixelShader( pPSBlob->GetBufferPointer(), pPSBlob->GetBufferSize(), nullptr, &g_pPixelShader );
-	pPSBlob->Release();
-    if( FAILED( hr ) )
-        return hr;
-
-    // Create vertex buffer
-    SimpleVertex vertices[] =
-    {
-        { XMFLOAT3( -1.0f, 1.0f, -1.0f ), XMFLOAT4( 0.0f, 0.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, 1.0f, -1.0f ), XMFLOAT4( 0.0f, 1.0f, 0.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, 1.0f, 1.0f ), XMFLOAT4( 0.0f, 1.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( -1.0f, 1.0f, 1.0f ), XMFLOAT4( 1.0f, 0.0f, 0.0f, 1.0f ) },
-        { XMFLOAT3( -1.0f, -1.0f, -1.0f ), XMFLOAT4( 1.0f, 0.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, -1.0f, -1.0f ), XMFLOAT4( 1.0f, 1.0f, 0.0f, 1.0f ) },
-        { XMFLOAT3( 1.0f, -1.0f, 1.0f ), XMFLOAT4( 1.0f, 1.0f, 1.0f, 1.0f ) },
-        { XMFLOAT3( -1.0f, -1.0f, 1.0f ), XMFLOAT4( 0.0f, 0.0f, 0.0f, 1.0f ) },
-    };
-    D3D11_BUFFER_DESC bd;
-	ZeroMemory( &bd, sizeof(bd) );
-    bd.Usage = D3D11_USAGE_DEFAULT;
-    bd.ByteWidth = sizeof( SimpleVertex ) * 8;
-    bd.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-    D3D11_SUBRESOURCE_DATA InitData;
-	ZeroMemory( &InitData, sizeof(InitData) );
-    InitData.pSysMem = vertices;
-    hr = g_pd3dDevice->CreateBuffer( &bd, &InitData, &g_pVertexBuffer );
-    if( FAILED( hr ) )
-        return hr;
-
-    // Set vertex buffer
-    UINT stride = sizeof( SimpleVertex );
-    UINT offset = 0;
-    g_pImmediateContext->IASetVertexBuffers( 0, 1, &g_pVertexBuffer, &stride, &offset );
-
-    // Create index buffer
-    WORD indices[] =
-    {
-        3,1,0,
-        2,1,3,
-
-        0,5,4,
-        1,5,0,
-
-        3,4,7,
-        0,4,3,
-
-        1,6,5,
-        2,6,1,
-
-        2,7,6,
-        3,7,2,
-
-        6,4,5,
-        7,4,6,
-    };
-
-    bd.Usage = D3D11_USAGE_DEFAULT;
-    bd.ByteWidth = sizeof( WORD ) * 36;        // 36 vertices needed for 12 triangles in a triangle list
-    bd.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bd.CPUAccessFlags = 0;
-    InitData.pSysMem = indices;
-    hr = g_pd3dDevice->CreateBuffer( &bd, &InitData, &g_pIndexBuffer );
-    if( FAILED( hr ) )
-        return hr;
-
-    // Set index buffer
-    g_pImmediateContext->IASetIndexBuffer( g_pIndexBuffer, DXGI_FORMAT_R16_UINT, 0 );
-
-    // Set primitive topology
-    g_pImmediateContext->IASetPrimitiveTopology( D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST );
-
-	// Create the constant buffer
-	bd.Usage = D3D11_USAGE_DEFAULT;
-	bd.ByteWidth = sizeof(ConstantBuffer);
-	bd.BindFlags = D3D11_BIND_CONSTANT_BUFFER;
-	bd.CPUAccessFlags = 0;
-    hr = g_pd3dDevice->CreateBuffer( &bd, nullptr, &g_pConstantBuffer );
-    if( FAILED( hr ) )
-        return hr;
-
-    // Initialize the world matrix
-	g_World = XMMatrixIdentity();
-
-    // Initialize the view matrix
-	XMVECTOR Eye = XMVectorSet( 4.0f, 2.0f, 0.0f, 0.0f );
-	XMVECTOR At = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
-	XMVECTOR Up = XMVectorSet( 0.0f, 1.0f, 0.0f, 0.0f );
-	g_View = XMMatrixLookAtLH( Eye, At, Up );
-
-    // Initialize the projection matrix
-	g_Projection = XMMatrixPerspectiveFovLH( XM_PIDIV2, width / (FLOAT)height, 0.01f, 100.0f );
-
-    return S_OK;
+   return TRUE;
 }
 
-
-//--------------------------------------------------------------------------------------
-// Clean up the objects we've created
-//--------------------------------------------------------------------------------------
-void CleanupDevice()
+//
+//  FUNCTION: WndProc(HWND, UINT, WPARAM, LPARAM)
+//
+//  PURPOSE: Processes messages for the main window.
+//
+//  WM_COMMAND  - process the application menu
+//  WM_PAINT    - Paint the main window
+//  WM_DESTROY  - post a quit message and return
+//
+//
+LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    if( g_pImmediateContext ) g_pImmediateContext->ClearState();
-    if( g_pConstantBuffer ) g_pConstantBuffer->Release();
-    if( g_pVertexBuffer ) g_pVertexBuffer->Release();
-    if( g_pIndexBuffer ) g_pIndexBuffer->Release();
-    if( g_pVertexLayout ) g_pVertexLayout->Release();
-    if( g_pVertexShader ) g_pVertexShader->Release();
-    if( g_pPixelShader ) g_pPixelShader->Release();
-    if( g_pRenderTargetView ) g_pRenderTargetView->Release();
-    if( g_pSwapChain1 ) g_pSwapChain1->Release();
-    if( g_pSwapChain ) g_pSwapChain->Release();
-    if( g_pImmediateContext1 ) g_pImmediateContext1->Release();
-    if( g_pImmediateContext ) g_pImmediateContext->Release();
-    if( g_pd3dDevice1 ) g_pd3dDevice1->Release();
-    if( g_pd3dDevice ) g_pd3dDevice->Release();
-}
-
-
-//--------------------------------------------------------------------------------------
-// Called every time the application receives a message
-//--------------------------------------------------------------------------------------
-LRESULT CALLBACK WndProc( HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam )
-{
-    PAINTSTRUCT ps;
-    HDC hdc;
-
-    switch( message )
+    switch (message)
     {
-    case WM_PAINT:
-        hdc = BeginPaint( hWnd, &ps );
-        EndPaint( hWnd, &ps );
-        break;
-
-    case WM_DESTROY:
-        PostQuitMessage( 0 );
-        break;
     case WM_SIZE:
-        if (g_pSwapChain)
+       if (g_pRenderer != NULL)
+       {
+          RECT rc;
+          GetClientRect(hWnd, &rc);
+          g_pRenderer->Resize(rc.right - rc.left, rc.bottom - rc.top);
+       }
+       break;
+    case WM_COMMAND:
         {
-            g_pImmediateContext->OMSetRenderTargets(0, 0, 0);
-
-            // Release all outstanding references to the swap chain's buffers.
-            g_pRenderTargetView->Release();
-
-            HRESULT hr;
-            // Preserve the existing buffer count and format.
-            // Automatically choose the width and height to match the client rect for HWNDs.
-            hr = g_pSwapChain->ResizeBuffers(0, 0, 0, DXGI_FORMAT_UNKNOWN, 0);
-
-            if (FAILED(hr))
-                return hr;
-
-            // Get buffer and create a render-target-view.
-            ID3D11Texture2D* pBuffer;
-            hr = g_pSwapChain->GetBuffer(0, __uuidof(ID3D11Texture2D), (void**)&pBuffer);
-
-            if (FAILED(hr))
-                return hr;
-
-            if (pBuffer != 0) {
-                hr = g_pd3dDevice->CreateRenderTargetView(pBuffer, NULL,
-                    &g_pRenderTargetView);
-                pBuffer->Release();
-                if (FAILED(hr))
-                    return hr;
-            }        
-
-            g_pImmediateContext->OMSetRenderTargets(1, &g_pRenderTargetView, NULL);
-
-            // Set up the viewport.
-            D3D11_VIEWPORT vp;
-            vp.Width = LOWORD(lParam);
-            vp.Height = HIWORD(lParam);
-            vp.MinDepth = 0.0f;
-            vp.MaxDepth = 1.0f;
-            vp.TopLeftX = 0;
-            vp.TopLeftY = 0;
-            g_pImmediateContext->RSSetViewports(1, &vp);
+            int wmId = LOWORD(wParam);
+            // Parse the menu selections:
+            switch (wmId)
+            {
+            case IDM_ABOUT:
+                DialogBox(hInst, MAKEINTRESOURCE(IDD_ABOUTBOX), hWnd, About);
+                break;
+            case IDM_EXIT:
+                DestroyWindow(hWnd);
+                break;
+            default:
+                return DefWindowProc(hWnd, message, wParam, lParam);
+            }
         }
+        break;
 
+    case WM_RBUTTONDOWN:
+       g_mousePress = true;
+       g_mousePrevX = GET_X_LPARAM(lParam);
+       g_mousePrevY = GET_Y_LPARAM(lParam);
+       break;
+
+    case WM_RBUTTONUP:
+       g_mousePress = false;
+       break;
+
+    case WM_MOUSEMOVE:
+       if (g_mousePress)
+       {
+          int x = GET_X_LPARAM(lParam);
+          int y = GET_Y_LPARAM(lParam);
+
+          g_pRenderer->MouseMove(x - g_mousePrevX, y - g_mousePrevY);
+
+          g_mousePrevX = x;
+          g_mousePrevY = y;
+       }
+       break;
+
+    case WM_MOUSEWHEEL:
+       g_pRenderer->MouseWheel(GET_WHEEL_DELTA_WPARAM(wParam));
+       break;
+    
+    case WM_KEYDOWN:
+        if (GetAsyncKeyState(VK_W) || GetAsyncKeyState(VK_UP))
+            g_pRenderer->KeyArrowPress(0, 0.5f);
+        if (GetAsyncKeyState(VK_S) || GetAsyncKeyState(VK_DOWN))
+            g_pRenderer->KeyArrowPress(0, -0.5f);
+        if (GetAsyncKeyState(VK_A) || GetAsyncKeyState(VK_LEFT))
+            g_pRenderer->KeyArrowPress(-0.25f, 0);
+        if (GetAsyncKeyState(VK_D) || GetAsyncKeyState(VK_RIGHT))
+            g_pRenderer->KeyArrowPress(0.25f, 0);
+
+        if (GetAsyncKeyState(VK_ONE))
+            g_pRenderer->SwitchLightMode(1);
+        if (GetAsyncKeyState(VK_TWO))
+            g_pRenderer->SwitchLightMode(10);
+        if (GetAsyncKeyState(VK_THREE))
+            g_pRenderer->SwitchLightMode(100);
+
+
+    case WM_PAINT:
+        {
+            PAINTSTRUCT ps;
+            HDC hdc = BeginPaint(hWnd, &ps);
+            // TODO: Add any drawing code that uses hdc here...
+            EndPaint(hWnd, &ps);
+        }
+        break;
+    case WM_DESTROY:
+        PostQuitMessage(0);
+        break;
     default:
-        return DefWindowProc( hWnd, message, wParam, lParam );
+        return DefWindowProc(hWnd, message, wParam, lParam);
     }
-
     return 0;
 }
 
-
-//--------------------------------------------------------------------------------------
-// Render a frame
-//--------------------------------------------------------------------------------------
-void Render()
+// Message handler for about box.
+INT_PTR CALLBACK About(HWND hDlg, UINT message, WPARAM wParam, LPARAM lParam)
 {
-    ID3DUserDefinedAnnotation* pAnnotation = nullptr;
-    HRESULT hr = g_pImmediateContext->QueryInterface(__uuidof(pAnnotation), reinterpret_cast<void**>(&pAnnotation));
-
-    if (FAILED(hr)) {
-        pAnnotation = nullptr;
-        CleanupDevice();
-        return;
-    }
-
-    pAnnotation->BeginEvent(L"Rendering");
-
-
-    // Update our time
-    static float t = 0.0f;
-    if( g_driverType == D3D_DRIVER_TYPE_REFERENCE )
+    UNREFERENCED_PARAMETER(lParam);
+    switch (message)
     {
-        t += ( float )XM_PI * 0.0125f;
+    case WM_INITDIALOG:
+        return (INT_PTR)TRUE;
+
+    case WM_COMMAND:
+        if (LOWORD(wParam) == IDOK || LOWORD(wParam) == IDCANCEL)
+        {
+            EndDialog(hDlg, LOWORD(wParam));
+            return (INT_PTR)TRUE;
+        }
+        break;
     }
-    else
-    {
-        static ULONGLONG timeStart = 0;
-        ULONGLONG timeCur = GetTickCount64();
-        if( timeStart == 0 )
-            timeStart = timeCur;
-        t = ( timeCur - timeStart ) / 1000.0f;
-    }
-
-    //
-    // Animate the cube
-    //
-	g_World = XMMatrixRotationY( t );
-
-    //
-    // Clear the back buffer
-    //
-    g_pImmediateContext->ClearRenderTargetView( g_pRenderTargetView, Colors::DimGray );
-
-    //
-    // Update variables
-    //
-    ConstantBuffer cb;
-	cb.mWorld = XMMatrixTranspose( g_World );
-	cb.mView = XMMatrixTranspose( g_View );
-	cb.mProjection = XMMatrixTranspose( g_Projection );
-	g_pImmediateContext->UpdateSubresource( g_pConstantBuffer, 0, nullptr, &cb, 0, 0 );
-
-    //
-    // Renders a triangle
-    //
-	g_pImmediateContext->VSSetShader( g_pVertexShader, nullptr, 0 );
-	g_pImmediateContext->VSSetConstantBuffers( 0, 1, &g_pConstantBuffer );
-	g_pImmediateContext->PSSetShader( g_pPixelShader, nullptr, 0 );
-	g_pImmediateContext->DrawIndexed( 36, 0, 0 );        // 36 vertices needed for 12 triangles in a triangle list
-
-    pAnnotation->EndEvent();
-    pAnnotation->Release();
-
-
-    //
-    // Present our back buffer to our front buffer
-    //
-    g_pSwapChain->Present( 0, 0 );
+    return (INT_PTR)FALSE;
 }
